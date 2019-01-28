@@ -105,3 +105,13 @@ class Camera(object):
         #plt.show()
 
         #pass
+
+
+f =   # focal length
+c =   # sensor size
+X =   # real world coords
+u_gcp =   # gcp camera coordinates
+cam = Camera(f, c)
+cam.estimate_pose(X, u_gcp)
+
+print(cam.p)
