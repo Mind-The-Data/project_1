@@ -1,39 +1,39 @@
 import numpy as np
 from math import sin, cos
 import scipy.optimize as so
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 
 class Camera(object):
-    def __init__(self, f, c):
-        self.p = None  # Pose (x_cam, y_cam, z_cam, yaw, pitch, roll)
+    def __init__(self, f, c, p):
+        self.p = p  # Pose (x_cam, y_cam, z_cam, yaw, pitch, roll)
         self.f = f  # Focal Length in Pixels
         self.c = np.array(c)  # sensor size?
 
-    def transforms(self, X):
+    def transforms(self, X, p):
         """
         This function performs the translation and rotation from world coordinates into generalized camera coordinates.
+        X: 3 D array of Easting, Northing, Elev for each point
         """
         ### rotational transform
         # read in real world coordinates
-        gcp_coords = np.loadtxt(X)
-        new_col = np.ones((len(gcp_coords), 1))
-        hom_coords = np.append(gcp_coords, new_col, 1)
+        new_col = np.ones((len(X), 1))
+        hom_coords = np.append(X, new_col, 1)
 
         # R yaw matrix
-        R_yaw = np.matrix([[cos(self.p[3]), -sin(self.p[3]), 0, 0],
-                           [sin(self.p[3]), cos(self.p[3]), 0, 0],
+        R_yaw = np.matrix([[cos(p[3]), -sin(p[3]), 0, 0],
+                           [sin(p[3]), cos(p[3]), 0, 0],
                            [0, 0, 1, 0]])
 
         # R pitch matrix
         R_pitch = np.matrix([[1, 0, 0],
-                             [0, cos(self.p[4]), sin(self.p[4])],
-                             [0, -sin(self.p[4]), cos(self.p[4])]])
+                             [0, cos(p[4]), sin(p[4])],
+                             [0, -sin(p[4]), cos(p[4])]])
 
         # R roll matrix
-        R_roll = np.matrix([[cos(self.p[5]), 0, -sin(self.p[5])],
+        R_roll = np.matrix([[cos(p[5]), 0, -sin(p[5])],
                             [0, 1, 0],
-                            [sin(self.p[5]), 0, cos(self.p[5])]])
+                            [sin(p[5]), 0, cos(p[5])]])
 
         # R axis matrix
         R_axis = np.matrix([[1, 0, 0],
@@ -41,19 +41,19 @@ class Camera(object):
                             [0, 1, 0]])
 
         # translation matrix
-        T_mat = np.matrix([[1, 0, 0, -self.p[0]],
-                           [0, 1, 0, -self.p[1]],
-                           [0, 0, 1, -self.p[2]],
+        T_mat = np.matrix([[1, 0, 0, -p[0]],
+                           [0, 1, 0, -p[1]],
+                           [0, 0, 1, -p[2]],
                            [0, 0, 0, 1]])
 
         # C matrix
         C_mat = R_axis @ R_roll @ R_pitch @ R_yaw @ T_mat
 
         # output generalized coords
-        gen_coords = np.zeros((len(self.gcp_coords), 3))
+        gen_coords = np.zeros((len(X), 3))
         for i in range(len(gen_coords)):
-            h_coord_mat = np.matrix(hom_coords[i])
-            gen_coords[i] = C_mat@h_coord_mat
+            h_coord_mat = np.matrix(hom_coords[i]).T
+            gen_coords[i] = (C_mat@h_coord_mat).T
 
         ### projective transformation
         p_0 = gen_coords[:, 0]
@@ -73,7 +73,14 @@ class Camera(object):
             cam_coords[x][0] = u[x]
             cam_coords[x][1] = v[x]
 
+        #print(cam_coords)
+
         return cam_coords
+
+    def residuals(self, p, X, u_gcp):
+        error = self.transforms(X, p).flatten() - u_gcp.flatten()
+
+        return error**2
 
     def estimate_pose(self, X, u_gcp):
         """
@@ -81,23 +88,11 @@ class Camera(object):
         and the projected pixels coordinates of X_gcp is minimized.
         """
 
-        # Define our model
-        def f(X):
-            cam_coords = self.transforms(X)
-            return cam_coords
-
-        # Define the residual as f(intercept,slope,x) - y
-        def residual(X, u_gcp): # pass u_gcp as 2D array
-
-            return f(X).flatten() - u_gcp.flatten()
-
-        # Make an initial guess about
-        p_0 = np.array([0, 0, 0, 0, 0, 0])
-
         # Use scipy implementation of Levenburg-Marquardt to find the optimal
         # pose values
-        p_opt = so.least_squares(residual, p_0, method='lm', args=(X, u_gcp))['x'] # 'x' is dict key to opt values
-        self.p = p_opt
+        p_opt = so.least_squares(self.residuals, self.p, method='lm', args=(X, u_gcp))['x']  # 'x' is dict key to opt values
+
+        return p_opt
 
         #plt.plot(x, y_obs, 'k.')
         #plt.plot(x, f(x, p_true), 'r-')
@@ -107,11 +102,21 @@ class Camera(object):
         #pass
 
 
-f =   # focal length
-c =   # sensor size
-X =   # real world coords
-u_gcp =   # gcp camera coordinates
-cam = Camera(f, c)
-cam.estimate_pose(X, u_gcp)
+f = 2448.  # focal length
+c = [3264., 2448.]  # sensor size
+p = [272465, 5193940, 1000, 0, 0, 0]
+X = np.array([[272558.68, 5193938.07, 1015.],
+              [272572.34, 5193981.03, 982.],
+              [273171.31, 5193846.77, 1182.],
+              [273183.35, 5194045.24, 1137.],
+              [272556.74, 5193922.02, 998.]])  # real world coords
+u_gcp = np.array([[1984., 1053.],
+                  [884., 1854.],
+                  [1202., 1087.],
+                  [385., 1190.],
+                  [2350., 1442.]])  # gcp camera coordinates
 
-print(cam.p)
+cam = Camera(f, c, p)
+out = cam.estimate_pose(X, u_gcp)
+
+print(out)
