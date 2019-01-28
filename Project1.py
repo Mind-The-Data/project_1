@@ -95,8 +95,8 @@ class Camera(object):
         p_0 = np.array([0, 0, 0, 0, 0, 0])
 
         # Use scipy implementation of Levenburg-Marquardt to find the optimal
-        # slope and intercept values.
-        p_opt = so.least_squares(residual, p_0, method='lm', args=(X, u_gcp))['x']
+        # pose values
+        p_opt = so.least_squares(residual, p_0, method='lm', args=(X, u_gcp))['x'] # 'x' is dict key to opt values
         self.p = p_opt
 
         #plt.plot(x, y_obs, 'k.')
