@@ -1,7 +1,7 @@
 import numpy as np
 from math import sin, cos
 import scipy.optimize as so
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 
 class Camera(object):
@@ -80,7 +80,7 @@ class Camera(object):
     def residuals(self, p, X, u_gcp):
         error = self.transforms(X, p).flatten() - u_gcp.flatten()
 
-        return error**2
+        return error
 
     def estimate_pose(self, X, u_gcp):
         """
@@ -101,22 +101,36 @@ class Camera(object):
 
         #pass
 
+    def plot_output(self, im, u_true, v_true, u_est, v_est):
+        im = plt.imread(im)
+        fig, ax = plt.subplots(figsize=(16, 10))
+        ax.imshow(im)
+        ax.scatter(u_true, v_true, s=60, marker='x', color='red', label='true gcps')
+        ax.scatter(u_est, v_est, s=60, marker='x', color='yellow', label='estimated gcps')
+        plt.legend()
+        plt.show()
 
-f = 2448.  # focal length
-c = [3264., 2448.]  # sensor size
-p = [272465, 5193940, 1000, 0, 0, 0]
-X = np.array([[272558.68, 5193938.07, 1015.],
-              [272572.34, 5193981.03, 982.],
-              [273171.31, 5193846.77, 1182.],
-              [273183.35, 5194045.24, 1137.],
-              [272556.74, 5193922.02, 998.]])  # real world coords
-u_gcp = np.array([[1984., 1053.],
-                  [884., 1854.],
-                  [1202., 1087.],
-                  [385., 1190.],
-                  [2350., 1442.]])  # gcp camera coordinates
+        fig.savefig('gcps.png', dpi=150)
+
+        pass
+
+
+f = 3200.  # focal length
+c = [4608., 3456.]  # sensor size
+p = [272500, 5193700, 1000, 0.78, 0.2, 0]
+coords_txt = 'coords.csv'
+image = 'Clapp.png'
+
+coords = np.loadtxt(coords_txt, delimiter=',', skiprows=1)
+
+X = coords[:, 2:]
+u_gcp = coords[:, 0:2]
 
 cam = Camera(f, c, p)
 out = cam.estimate_pose(X, u_gcp)
-
 print(out)
+
+np.savetxt('optimum_pose.txt', out, delimiter=' ')
+
+cam_coords = cam.transforms(X, out)
+cam.plot_output(image, u_gcp[:,0], u_gcp[:,1], cam_coords[:,0], cam_coords[:,1])
