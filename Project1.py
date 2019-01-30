@@ -1,3 +1,4 @@
+# imports
 import numpy as np
 from math import sin, cos
 import scipy.optimize as so
@@ -5,15 +6,28 @@ import matplotlib.pyplot as plt
 
 
 class Camera(object):
+    """
+    This class contains methods to perform rotational and projective transforms,
+    and to estimate camera pose from GCPs
+    """
     def __init__(self, f, c, p):
+        """
+
+        :param f: camera focal length
+        :param c: camera sensor size - [width, height]
+        :param p: intial pose estimate - [easting, northing, elevation, yaw, pitch, roll]
+        """
         self.p = p  # Pose (x_cam, y_cam, z_cam, yaw, pitch, roll)
         self.f = f  # Focal Length in Pixels
-        self.c = np.array(c)  # sensor size?
+        self.c = np.array(c)  # sensor size [u, v]
 
     def transforms(self, X, p):
         """
-        This function performs the translation and rotation from world coordinates into generalized camera coordinates.
-        X: 3 D array of Easting, Northing, Elev for each point
+        This method takes real world coordinates, performs a roational transformation to shift them into generalized
+        camera coordinates, and then a projective transform to get them into camera sensor coordinates.
+        :param X: coordinates [Easting, Northing, Elev]
+        :param p: pose
+        :return: camera coordinates - [u, v]
         """
         ### rotational transform
         # read in real world coordinates
@@ -73,11 +87,16 @@ class Camera(object):
             cam_coords[x][0] = u[x]
             cam_coords[x][1] = v[x]
 
-        #print(cam_coords)
-
         return cam_coords
 
     def residuals(self, p, X, u_gcp):
+        """
+        Find the residuals between estimated gcp location based on pose, and real gcp location
+        :param p: pose
+        :param X: real world coordinates
+        :param u_gcp: camera coordinates of gcps
+        :return: error estimate
+        """
         error = self.transforms(X, p).flatten() - u_gcp.flatten()
 
         return error
@@ -86,6 +105,9 @@ class Camera(object):
         """
         This function adjusts the pose vector such that the difference between the observed pixel coordinates u_gcp
         and the projected pixels coordinates of X_gcp is minimized.
+        :param X: real world coordinates
+        :param u_gcp: camera coordinates of gcps - [u, v]
+        :return: optimum pose estimate
         """
 
         # Use scipy implementation of Levenburg-Marquardt to find the optimal
@@ -94,14 +116,16 @@ class Camera(object):
 
         return p_opt
 
-        #plt.plot(x, y_obs, 'k.')
-        #plt.plot(x, f(x, p_true), 'r-')
-        #plt.plot(x, f(x, p_opt), 'b-')
-        #plt.show()
-
-        #pass
-
     def plot_output(self, im, u_true, v_true, u_est, v_est):
+        """
+        plots the location of the gcps in the image along with the estimated gcp locations based on the optimum pose
+        :param im: path to image
+        :param u_true: measured u coordinates of gcps
+        :param v_true: measured v coordinates of gcps
+        :param u_est: u coordinates of estimates based on optimum pose
+        :param v_est: v coordinates of estimates based on optimum pose
+        :return: saves a fig of gcps
+        """
         im = plt.imread(im)
         fig, ax = plt.subplots(figsize=(16, 10))
         ax.imshow(im)
@@ -115,6 +139,9 @@ class Camera(object):
         pass
 
 
+# run the camera model for a given image with selected gcps
+
+# params
 f = 3200.  # focal length
 c = [4608., 3456.]  # sensor size
 p = [272500, 5193700, 1000, 0.78, 0.2, 0]
